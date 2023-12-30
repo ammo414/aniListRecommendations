@@ -5,11 +5,6 @@ from graphqlqueries import queryAnimeLists, queryRecsForAnime
 
 BASE_URL: str = 'https://anilist.co'
 QUERY_URL: str = 'https://graphql.anilist.co'
-COUNT_TIMES_RECOMMENDED: dict = {}  # dict of { rec tuple : int of times recommended }
-OVERALL_RECS: set = set()  # set of rec tuples
-GET_RECS_FOR: list = []  # list of mediaIds
-FILTER_RECS_OUT: list = []  # list of mediaIds
-RECOMMENDED_BECAUSE: dict = {}  # dict of { rec tuple : str of why recommended }
 
 
 class AnimeData:
@@ -33,9 +28,6 @@ class AnimeData:
 
     def addRecsToGive(self, rec: tuple):
         self.finalRecs.add(rec)
-
-    def unionRecsToGive(self, setOfRecs: set):
-        self.finalRecs.union(setOfRecs)
 
     def addCountOfTimesRecommended(self, rec: tuple):
         if rec in self.numberOfTimesRecommended:
@@ -168,7 +160,7 @@ def getMediaPage(mediaId: int) -> dict:
     return mediaPage
 
 
-def processRecommendations(mediaPage: dict, recProfile: AnimeData, threshold=65) -> set:
+def processRecommendations(mediaPage: dict, recProfile: AnimeData, threshold=65) -> None:
     """
     unpacks recommendation dict and determines if the rec is worthwhile based on scoreThreshold
     :param mediaPage: dict of media and its recommendations
@@ -179,7 +171,6 @@ def processRecommendations(mediaPage: dict, recProfile: AnimeData, threshold=65)
     mediaName: str
     pageOfRecs: list  # subset of medaPage data. List of the recommendations data
     media: dict  # subset of pageOfRecs
-    setOfRecs: set = set()
     recId: int
     recScore: int
     recName: str
@@ -200,12 +191,11 @@ def processRecommendations(mediaPage: dict, recProfile: AnimeData, threshold=65)
             print(f'\t{recName!r} is already in a watchlist: skipping')
             continue
         if recScore >= threshold:
-            setOfRecs.add((recId, recScore, recName))
+            recProfile.addRecsToGive((recId, recScore, recName))
             print(f'\t{recName!r} has a score of {recScore}')
             if recId not in recProfile.reasonWhyRecommended:
                 recProfile.recommendedBecause((recId, recScore, recName), f'has a score of {recScore}')
         recProfile.addCountOfTimesRecommended((recId, recScore, recName))
-    return setOfRecs
 
 
 def mainFunction(username: str, recProfile: AnimeData, threshold: int) -> set:
@@ -234,13 +224,13 @@ def mainFunction(username: str, recProfile: AnimeData, threshold: int) -> set:
         # now that we have our list of anime that we want to get recs for, get the recs
         for mediaId in recProfile.gettingRecsFor:
             mediaPage = getMediaPage(mediaId)
-            recProfile.unionRecsToGive(processRecommendations(mediaPage, recProfile, threshold))
+            processRecommendations(mediaPage, recProfile, threshold)
         for rec, timesRecommended in recProfile.numberOfTimesRecommended.items():
             if timesRecommended > 4:
                 if rec not in recProfile.finalRecs:
                     print(f'\t{rec[2]!r} was recommended {timesRecommended} times')
                     if rec[0] not in recProfile.reasonWhyRecommended:
-                        recProfile.recommendedBecause(rec, f'has been recommended {timesRecommended} times.')
+                        recProfile.recommendedBecause(rec[0], f'has been recommended {timesRecommended} times.')
                     recProfile.addRecsToGive(rec)
     else:
         print('anilist is down, please try again later.')
@@ -259,12 +249,12 @@ def saveRecsToCSV(recProfile, filename: str) -> None:
     line: str
 
     with open(filename + '.csv', 'w') as file:
-        file.write(','.join(['animeId', 'animeScore', 'animeTitle', 'reasonRecommended']))
+        file.write(','.join(['animeId', 'animeScore', 'animeTitle', 'reasonRecommended', '\n']))
         for rec in recProfile.finalRecs:  # intentionally made this probabilistic
             recId = rec[0]
             line = str(rec).removeprefix('(').removesuffix(')')
             line = ','.join([line, recProfile.reasonWhyRecommended[recId]])
-            file.write(line)
+            file.write(line+'\n')
 
 
 if __name__ == "__main__":

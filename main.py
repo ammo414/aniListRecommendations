@@ -216,8 +216,7 @@ def mainFunction(username: str, recProfile: AnimeData, threshold: int) -> set:
     if requests.head(BASE_URL).status_code == 200:
         mediaLists = getAnimeLists(username)
         for watchList in mediaLists:
-            if watchList['status'] == 'COMPLETED' \
-                    or watchList['status'] == 'CURRENT':
+            if watchList['status'] == 'COMPLETED' or watchList['status'] == 'CURRENT':
                 recProfile.getRecsFor(processCompleted(watchList, threshold))
             recProfile.filterRecsOut(processOtherLists(watchList))
 
